@@ -79,7 +79,9 @@ function loginComEnter(event) {
   if (event.key === 'Enter') {
     login();
   }
+  navigate('dashboard');
 }
+
 
 function login() {
   const user = document.getElementById('username').value.trim();
@@ -162,6 +164,9 @@ function navegarPrimeiraVez(){
   if (relatoriosSalvosStorage) {
     relatoriosSalvos = JSON.parse(relatoriosSalvosStorage);
   }
+  
+  // FORÇAR PARA SEMPRE INICIAR NA DASHBOARD
+  navigate('dashboard');
 }
 
 function inicializarDemo(){
