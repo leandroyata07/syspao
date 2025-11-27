@@ -119,8 +119,11 @@ function routeMenu(destino) {
         document.getElementById(btnId).classList.add('active');
     }
     
-    // Fechar menu (mobile)
-    toggleMenu();
+    // Fechar menu se estiver aberto
+    const menu = document.getElementById('menuOptions');
+    if (menu && menu.classList.contains('open')) {
+        menu.classList.remove('open');
+    }
     
     // Atualizar dados específicos da seção
     switch(destino) {
@@ -417,6 +420,7 @@ function renderizarVendas() {
             <td>R$ ${parseFloat(venda.valor || 0).toFixed(2)}</td>
             <td>${venda.hora || ''}</td>
             <td>${venda.cliente || 'Cliente não informado'}</td>
+            <td>${venda.formaPagamento || 'Não informado'}</td>
             <td>
                 <button onclick="excluirVenda(${index})" title="Excluir" style="background:transparent;color:#d9534f;">🗑️</button>
             </td>
@@ -507,7 +511,8 @@ function registrarVenda(event) {
         valor: parseFloat(document.getElementById('vendaValor').value) || 0,
         data: document.getElementById('vendaData').value,
         hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        cliente: cliente || 'Cliente não informado'
+        cliente: cliente || 'Cliente não informado',
+        formaPagamento: document.getElementById('vendaFormaPagamento').value
     };
     
     // Atualizar estoque
@@ -537,6 +542,7 @@ function limparFormVenda() {
     document.getElementById('formVenda').reset();
     document.getElementById('vendaValor').value = '';
     document.getElementById('vendaData').value = new Date().toISOString().split('T')[0];
+    document.getElementById('vendaFormaPagamento').value = '';
     const erroDiv = document.getElementById('erro-vendaCliente');
     if (erroDiv) erroDiv.classList.add('hidden');
 }
@@ -1460,6 +1466,7 @@ function atualizarRelatorio() {
     const fim = document.getElementById('filtroFim').value;
     const fornecedor = document.getElementById('filtroFornecedor').value;
     const cliente = document.getElementById('filtroCliente').value;
+    const formaPagamento = document.getElementById('filtroFormaPagamento').value;
     
     let conteudo = '<h3>Relatório Gerado</h3>';
     
@@ -1479,6 +1486,9 @@ function atualizarRelatorio() {
             if (cliente) {
                 vendasFiltradas = vendasFiltradas.filter(v => v.cliente === cliente);
             }
+            if (formaPagamento) {
+                vendasFiltradas = vendasFiltradas.filter(v => v.formaPagamento === formaPagamento);
+            }
             
             conteudo += `
                 <div class="table-container">
@@ -1490,6 +1500,7 @@ function atualizarRelatorio() {
                                 <th>Quantidade</th>
                                 <th>Valor (R$)</th>
                                 <th>Cliente</th>
+                                <th>Forma de Pagamento</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1500,6 +1511,7 @@ function atualizarRelatorio() {
                                     <td>${v.quantidade}</td>
                                     <td>R$ ${parseFloat(v.valor).toFixed(2)}</td>
                                     <td>${v.cliente}</td>
+                                    <td>${v.formaPagamento || 'Não informado'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1507,6 +1519,9 @@ function atualizarRelatorio() {
                 </div>
                 <p><strong>Total de Vendas: R$ ${vendasFiltradas.reduce((sum, v) => sum + parseFloat(v.valor), 0).toFixed(2)}</strong></p>
             `;
+            
+            // Análise de formas de pagamento
+            conteudo += gerarAnaliseFormasPagamento(vendasFiltradas);
             break;
             
         case 'estoque':
@@ -1631,36 +1646,103 @@ function atualizarRelatorio() {
             break;
             
         case 'clientes':
-            let clientesFiltrados = clientes;
-            
             if (cliente) {
-                clientesFiltrados = clientesFiltrados.filter(c => c.nome === cliente);
-            }
-            
-            conteudo += `
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>CPF</th>
-                                <th>Telefone</th>
-                                <th>Endereço</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${clientesFiltrados.map(c => `
+                // RELATÓRIO INDIVIDUAL DE CLIENTE
+                const clienteData = clientes.find(c => c.nome === cliente);
+                const vendasCliente = vendas.filter(v => v.cliente === cliente);
+                
+                conteudo += `
+                    <div class="dashboard-card" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); margin-bottom: 20px;">
+                        <h3>👤 Dados do Cliente</h3>
+                        <p><strong>Nome:</strong> ${clienteData ? clienteData.nome : cliente}</p>
+                        <p><strong>CPF:</strong> ${clienteData && clienteData.cpf ? clienteData.cpf : '-'}</p>
+                        <p><strong>Telefone:</strong> ${clienteData && clienteData.telefone ? clienteData.telefone : '-'}</p>
+                        <p><strong>Endereço:</strong> ${clienteData && clienteData.endereco ? clienteData.endereco : '-'}</p>
+                    </div>
+                    
+                    <h4>📊 Histórico de Compras</h4>
+                    <div class="table-container">
+                        <table>
+                            <thead>
                                 <tr>
-                                    <td>${c.nome}</td>
-                                    <td>${c.cpf || '-'}</td>
-                                    <td>${c.telefone || '-'}</td>
-                                    <td>${c.endereco || '-'}</td>
+                                    <th>Data</th>
+                                    <th>Produto</th>
+                                    <th>Quantidade</th>
+                                    <th>Valor (R$)</th>
+                                    <th>Forma de Pagamento</th>
+                                    <th>Status</th>
                                 </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
+                            </thead>
+                            <tbody>
+                                ${vendasCliente.map(v => {
+                                    const isFiado = v.formaPagamento === 'Fiado';
+                                    const statusText = isFiado ? '⚠️ Devedor' : '✅ Pago';
+                                    const statusColor = isFiado ? '#f44336' : '#4caf50';
+                                    return `
+                                        <tr>
+                                            <td>${v.data}</td>
+                                            <td>${v.produto}</td>
+                                            <td>${v.quantidade}</td>
+                                            <td>R$ ${parseFloat(v.valor).toFixed(2)}</td>
+                                            <td>${v.formaPagamento || 'Não informado'}</td>
+                                            <td style="color: ${statusColor}; font-weight: bold;">${statusText}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                // Resumo do cliente
+                const totalGasto = vendasCliente.reduce((sum, v) => sum + parseFloat(v.valor), 0);
+                const totalFiado = vendasCliente.filter(v => v.formaPagamento === 'Fiado').reduce((sum, v) => sum + parseFloat(v.valor), 0);
+                const totalCompras = vendasCliente.length;
+                
+                conteudo += `
+                    <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                        <h4>📈 Resumo Financeiro</h4>
+                        <p><strong>Total de Compras:</strong> ${totalCompras}</p>
+                        <p><strong>Total Gasto:</strong> R$ ${totalGasto.toFixed(2)}</p>
+                        <p style="color: ${totalFiado > 0 ? '#f44336' : '#4caf50'}; font-weight: bold;">
+                            <strong>Valor em Aberto (Fiado):</strong> R$ ${totalFiado.toFixed(2)}
+                        </p>
+                        ${totalFiado > 0 ? '<p style="color: #f44336; font-weight: bold;">⚠️ Cliente possui débitos pendentes!</p>' : '<p style="color: #4caf50;">✅ Cliente sem débitos pendentes</p>'}
+                    </div>
+                `;
+                
+                // Análise de formas de pagamento do cliente
+                conteudo += gerarAnaliseFormasPagamento(vendasCliente);
+                
+            } else {
+                // LISTAGEM DE TODOS OS CLIENTES
+                let clientesFiltrados = clientes;
+                
+                conteudo += `
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>CPF</th>
+                                    <th>Telefone</th>
+                                    <th>Endereço</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${clientesFiltrados.map(c => `
+                                    <tr>
+                                        <td>${c.nome}</td>
+                                        <td>${c.cpf || '-'}</td>
+                                        <td>${c.telefone || '-'}</td>
+                                        <td>${c.endereco || '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
             break;
             
         case 'lucro':
@@ -1683,6 +1765,69 @@ function atualizarRelatorio() {
     document.getElementById('relatorioContent').innerHTML = conteudo;
 }
 
+// Função auxiliar para gerar análise de formas de pagamento
+function gerarAnaliseFormasPagamento(vendasArray) {
+    if (!vendasArray || vendasArray.length === 0) {
+        return '';
+    }
+    
+    const formasPagamento = {};
+    let totalVendasAnalise = 0;
+    let totalTransacoes = vendasArray.length;
+    
+    vendasArray.forEach(venda => {
+        const forma = venda.formaPagamento || 'Não informado';
+        const valor = parseFloat(venda.valor) || 0;
+        
+        if (formasPagamento[forma]) {
+            formasPagamento[forma].quantidade++;
+            formasPagamento[forma].valorTotal += valor;
+        } else {
+            formasPagamento[forma] = {
+                quantidade: 1,
+                valorTotal: valor
+            };
+        }
+        totalVendasAnalise += valor;
+    });
+    
+    let formaMaisUtilizada = '';
+    let maiorQuantidade = 0;
+    
+    let conteudo = `<div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px; border-left: 4px solid #d2691e;">
+        <h4>📊 Análise das Formas de Pagamento</h4>`;
+    
+    // Ordenar formas de pagamento por quantidade
+    const formasOrdenadas = Object.entries(formasPagamento).sort((a, b) => b[1].quantidade - a[1].quantidade);
+    
+    formasOrdenadas.forEach(([forma, dados]) => {
+        const porcentagemValor = totalVendasAnalise > 0 ? (dados.valorTotal / totalVendasAnalise * 100).toFixed(1) : 0;
+        const porcentagemQuantidade = totalTransacoes > 0 ? (dados.quantidade / totalTransacoes * 100).toFixed(1) : 0;
+        
+        if (dados.quantidade > maiorQuantidade) {
+            maiorQuantidade = dados.quantidade;
+            formaMaisUtilizada = forma;
+        }
+        
+        conteudo += `
+            <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 6px; border-left: 3px solid #d2691e;">
+                <p style="margin: 0 0 5px 0;"><strong>${forma}:</strong></p>
+                <p style="margin: 0; font-size: 0.9em;">
+                    📌 ${dados.quantidade} transações (${porcentagemQuantidade}% do total)<br>
+                    💰 R$ ${dados.valorTotal.toFixed(2)} (${porcentagemValor}% do valor total)
+                </p>
+            </div>
+        `;
+    });
+    
+    conteudo += `<p style="margin-top: 15px; color: #d2691e; font-weight: bold; background: white; padding: 10px; border-radius: 6px;">
+        🎯 Forma de pagamento mais utilizada: ${formaMaisUtilizada} (${maiorQuantidade} vezes)
+    </p>`;
+    conteudo += `</div>`;
+    
+    return conteudo;
+}
+
 function limparFiltrosRelatorio() {
     document.getElementById('relTipo').value = 'vendas';
     document.getElementById('filtroProduto').value = '';
@@ -1690,7 +1835,326 @@ function limparFiltrosRelatorio() {
     document.getElementById('filtroFim').value = '';
     document.getElementById('filtroFornecedor').value = '';
     document.getElementById('filtroCliente').value = '';
+    document.getElementById('filtroFormaPagamento').value = '';
     document.getElementById('relatorioContent').innerHTML = '';
+}
+
+// ========== MODAIS DE SELEÇÃO PARA FILTROS ==========
+function abrirModalSelecaoProduto() {
+    const modal = document.getElementById('selecaoProdutoModal');
+    const lista = document.getElementById('listaProdutosModal');
+    const busca = document.getElementById('buscaProdutoRelatorio');
+    
+    // Limpar busca anterior
+    busca.value = '';
+    
+    // Não preencher lista automaticamente para evitar exibições longas
+    lista.innerHTML = '';
+    lista.style.display = 'none';
+    
+    modal.classList.add('open');
+    
+    // Focar no campo de busca
+    setTimeout(() => busca.focus(), 100);
+}
+
+function fecharModalSelecaoProduto() {
+    document.getElementById('selecaoProdutoModal').classList.remove('open');
+    document.getElementById('buscaProdutoRelatorio').value = '';
+    const lista = document.getElementById('listaProdutosModal');
+    if (lista) { lista.innerHTML = ''; lista.style.display = 'none'; }
+}
+
+function filtrarProdutosModal() {
+    const busca = document.getElementById('buscaProdutoRelatorio').value.toLowerCase();
+    const lista = document.getElementById('listaProdutosModal');
+    // Se buscar por algo, popular a lista com itens que batem
+    if (busca.trim().length > 0) {
+        lista.innerHTML = '';
+        const encontrados = estoque.filter(p => (p.nome || '').toLowerCase().includes(busca));
+        if (encontrados.length === 0) {
+            lista.innerHTML = '<div class="modal-item">Nenhum produto encontrado</div>';
+        } else {
+            encontrados.forEach(produto => {
+                const div = document.createElement('div');
+                div.className = 'modal-item';
+                div.innerHTML = `<span>${produto.nome} (${produto.tipo})</span>`;
+                div.onclick = function() {
+                    document.getElementById('filtroProduto').value = produto.nome;
+                    fecharModalSelecaoProduto();
+                };
+                lista.appendChild(div);
+            });
+        }
+        lista.style.display = 'block';
+        highlightFirstItem('#listaProdutosModal');
+    } else {
+        // Campo vazio: não exibir lista para evitar overflow com muitos itens
+        lista.innerHTML = '';
+        lista.style.display = 'none';
+    }
+}
+
+function selecionarTodosProdutos() {
+    document.getElementById('filtroProduto').value = '';
+    fecharModalSelecaoProduto();
+}
+
+// Carregar todos os produtos no modal (botão manual)
+function carregarTodosProdutosModal() {
+    const lista = document.getElementById('listaProdutosModal');
+    lista.innerHTML = '';
+    estoque.forEach(produto => {
+        const div = document.createElement('div');
+        div.className = 'modal-item';
+        div.innerHTML = `<span>${produto.nome} (${produto.tipo})</span>`;
+        div.onclick = function() {
+            document.getElementById('filtroProduto').value = produto.nome;
+            fecharModalSelecaoProduto();
+        };
+        lista.appendChild(div);
+    });
+    lista.style.display = 'block';
+    highlightFirstItem('#listaProdutosModal');
+}
+
+function abrirModalSelecaoFornecedor() {
+    const modal = document.getElementById('selecaoFornecedorModal');
+    const lista = document.getElementById('listaFornecedoresModal');
+    const busca = document.getElementById('buscaFornecedorRelatorio');
+    
+    // Limpar busca anterior
+    busca.value = '';
+    
+    // Não preencher lista automaticamente para evitar exibições longas
+    lista.innerHTML = '';
+    lista.style.display = 'none';
+    
+    modal.classList.add('open');
+    
+    // Focar no campo de busca
+    setTimeout(() => busca.focus(), 100);
+}
+
+function fecharModalSelecaoFornecedor() {
+    document.getElementById('selecaoFornecedorModal').classList.remove('open');
+    document.getElementById('buscaFornecedorRelatorio').value = '';
+    const lista = document.getElementById('listaFornecedoresModal');
+    if (lista) { lista.innerHTML = ''; lista.style.display = 'none'; }
+}
+
+function filtrarFornecedoresModal() {
+    const busca = document.getElementById('buscaFornecedorRelatorio').value.toLowerCase();
+    const lista = document.getElementById('listaFornecedoresModal');
+    if (busca.trim().length > 0) {
+        lista.innerHTML = '';
+        const encontrados = fornecedores.filter(f => (f.nome || '').toLowerCase().includes(busca));
+        if (encontrados.length === 0) {
+            lista.innerHTML = '<div class="modal-item">Nenhum fornecedor encontrado</div>';
+        } else {
+            encontrados.forEach(fornecedor => {
+                const div = document.createElement('div');
+                div.className = 'modal-item';
+                div.innerHTML = `<span>${fornecedor.nome}</span>`;
+                div.onclick = function() {
+                    document.getElementById('filtroFornecedor').value = fornecedor.nome;
+                    fecharModalSelecaoFornecedor();
+                };
+                lista.appendChild(div);
+            });
+        }
+        lista.style.display = 'block';
+        highlightFirstItem('#listaFornecedoresModal');
+    } else {
+        lista.innerHTML = '';
+        lista.style.display = 'none';
+    }
+}
+
+function selecionarTodosFornecedores() {
+    document.getElementById('filtroFornecedor').value = '';
+    fecharModalSelecaoFornecedor();
+}
+
+// Carregar todos os fornecedores no modal (botão manual)
+function carregarTodosFornecedoresModal() {
+    const lista = document.getElementById('listaFornecedoresModal');
+    lista.innerHTML = '';
+    fornecedores.forEach(fornecedor => {
+        const div = document.createElement('div');
+        div.className = 'modal-item';
+        div.innerHTML = `<span>${fornecedor.nome}</span>`;
+        div.onclick = function() {
+            document.getElementById('filtroFornecedor').value = fornecedor.nome;
+            fecharModalSelecaoFornecedor();
+        };
+        lista.appendChild(div);
+    });
+    lista.style.display = 'block';
+    highlightFirstItem('#listaFornecedoresModal');
+}
+
+function abrirModalSelecaoCliente() {
+    const modal = document.getElementById('selecaoClienteModal');
+    const lista = document.getElementById('listaClientesModal');
+    const busca = document.getElementById('buscaClienteRelatorio');
+    
+    // Limpar busca anterior
+    busca.value = '';
+    
+    // Não preencher lista automaticamente para evitar exibições longas
+    lista.innerHTML = '';
+    lista.style.display = 'none';
+    
+    modal.classList.add('open');
+    
+    // Focar no campo de busca
+    setTimeout(() => busca.focus(), 100);
+}
+
+function fecharModalSelecaoCliente() {
+    document.getElementById('selecaoClienteModal').classList.remove('open');
+    document.getElementById('buscaClienteRelatorio').value = '';
+    const lista = document.getElementById('listaClientesModal');
+    if (lista) { lista.innerHTML = ''; lista.style.display = 'none'; }
+}
+
+function filtrarClientesModal() {
+    const busca = document.getElementById('buscaClienteRelatorio').value.toLowerCase();
+    const lista = document.getElementById('listaClientesModal');
+    if (busca.trim().length > 0) {
+        lista.innerHTML = '';
+        const encontrados = clientes.filter(c => (c.nome || '').toLowerCase().includes(busca));
+        if (encontrados.length === 0) {
+            lista.innerHTML = '<div class="modal-item">Nenhum cliente encontrado</div>';
+        } else {
+            encontrados.forEach(cliente => {
+                const div = document.createElement('div');
+                div.className = 'modal-item';
+                div.innerHTML = `<span>${cliente.nome}</span>`;
+                div.onclick = function() {
+                    document.getElementById('filtroCliente').value = cliente.nome;
+                    fecharModalSelecaoCliente();
+                };
+                lista.appendChild(div);
+            });
+        }
+        lista.style.display = 'block';
+        highlightFirstItem('#listaClientesModal');
+    } else {
+        lista.innerHTML = '';
+        lista.style.display = 'none';
+    }
+}
+
+function selecionarTodosClientes() {
+    document.getElementById('filtroCliente').value = '';
+    fecharModalSelecaoCliente();
+}
+
+// Carregar todos os clientes no modal (botão manual)
+function carregarTodosClientesModal() {
+    const lista = document.getElementById('listaClientesModal');
+    lista.innerHTML = '';
+    clientes.forEach(cliente => {
+        const div = document.createElement('div');
+        div.className = 'modal-item';
+        div.innerHTML = `<span>${cliente.nome}</span>`;
+        div.onclick = function() {
+            document.getElementById('filtroCliente').value = cliente.nome;
+            fecharModalSelecaoCliente();
+        };
+        lista.appendChild(div);
+    });
+    lista.style.display = 'block';
+    highlightFirstItem('#listaClientesModal');
+}
+
+// HIGHLIGHT HELPERS E NAVIGAÇÃO POR TECLADO
+function highlightFirstItem(selector) {
+    const lista = document.querySelector(selector);
+    if (!lista) return;
+    const items = lista.querySelectorAll('.modal-item');
+    items.forEach(it => it.classList.remove('highlighted'));
+    if (items.length > 0) {
+        items[0].classList.add('highlighted');
+        items[0].scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function moveHighlight(selector, direction) {
+    const lista = document.querySelector(selector);
+    if (!lista) return;
+    const items = Array.from(lista.querySelectorAll('.modal-item'));
+    if (items.length === 0) return;
+    let index = items.findIndex(it => it.classList.contains('highlighted'));
+    if (index === -1) {
+        // highlight first if none
+        items[0].classList.add('highlighted');
+        items[0].scrollIntoView({ block: 'nearest' });
+        return;
+    }
+    items[index].classList.remove('highlighted');
+    index += direction;
+    if (index < 0) index = 0;
+    if (index >= items.length) index = items.length - 1;
+    items[index].classList.add('highlighted');
+    items[index].scrollIntoView({ block: 'nearest' });
+}
+
+function selectHighlightedOrFirst(selector) {
+    const lista = document.querySelector(selector);
+    if (!lista) return null;
+    const highlighted = lista.querySelector('.modal-item.highlighted');
+    const item = highlighted || lista.querySelector('.modal-item');
+    return item;
+}
+
+// Handler para keydown nos modais
+function handleKeydownProdutosModal(event) {
+    const selector = '#listaProdutosModal';
+    if (event.key === 'ArrowDown') { event.preventDefault(); moveHighlight(selector, 1); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); moveHighlight(selector, -1); }
+    else if (event.key === 'Enter') {
+        event.preventDefault();
+        const item = selectHighlightedOrFirst(selector);
+        if (item) item.click();
+    } else if (event.key === 'Escape') { fecharModalSelecaoProduto(); }
+}
+
+function handleKeydownFornecedoresModal(event) {
+    const selector = '#listaFornecedoresModal';
+    if (event.key === 'ArrowDown') { event.preventDefault(); moveHighlight(selector, 1); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); moveHighlight(selector, -1); }
+    else if (event.key === 'Enter') {
+        event.preventDefault();
+        const item = selectHighlightedOrFirst(selector);
+        if (item) item.click();
+    } else if (event.key === 'Escape') { fecharModalSelecaoFornecedor(); }
+}
+
+function handleKeydownClientesModal(event) {
+    const selector = '#listaClientesModal';
+    if (event.key === 'ArrowDown') { event.preventDefault(); moveHighlight(selector, 1); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); moveHighlight(selector, -1); }
+    else if (event.key === 'Enter') {
+        event.preventDefault();
+        const item = selectHighlightedOrFirst(selector);
+        if (item) item.click();
+    } else if (event.key === 'Escape') { fecharModalSelecaoCliente(); }
+}
+
+// Função para gerar relatório (chama atualizarRelatorio e mostra mensagem)
+function gerarRelatorio() {
+    atualizarRelatorio();
+    
+    // Verificar se há conteúdo gerado
+    const conteudo = document.getElementById('relatorioContent');
+    if (conteudo && conteudo.innerHTML.trim() !== '') {
+        alert('✅ Relatório gerado com sucesso! Use os botões acima para exportar em PDF ou Excel.');
+    } else {
+        alert('❌ Erro ao gerar relatório. Verifique os filtros e tente novamente.');
+    }
 }
 
 function salvarRelatorioAtual() {
@@ -1759,6 +2223,7 @@ function exportRelatorioPDF() {
             doc.text('Qtd', 120, y + 7);
             doc.text('Valor (R$)', 150, y + 7);
             doc.text('Cliente', 190, y + 7);
+            doc.text('Forma Pag.', 230, y + 7);
             y += 15;
             
             // Dados
@@ -1773,6 +2238,7 @@ function exportRelatorioPDF() {
                 doc.text((venda.quantidade || 0).toString(), 120, y);
                 doc.text(`R$ ${parseFloat(venda.valor || 0).toFixed(2)}`, 150, y);
                 doc.text(venda.cliente || 'Não informado', 190, y);
+                doc.text(venda.formaPagamento || 'Não informado', 230, y);
                 y += 10;
             });
             
@@ -1853,11 +2319,12 @@ function exportRelatorioExcel() {
                 venda.produto,
                 venda.quantidade,
                 parseFloat(venda.valor || 0),
-                venda.cliente || 'Não informado'
+                venda.cliente || 'Não informado',
+                venda.formaPagamento || 'Não informado'
             ]);
             
             // Adicionar cabeçalho da tabela
-            headerData.push(['Data', 'Produto', 'Quantidade', 'Valor (R$)', 'Cliente']);
+            headerData.push(['Data', 'Produto', 'Quantidade', 'Valor (R$)', 'Cliente', 'Forma de Pagamento']);
             break;
             
         case 'estoque':
@@ -1951,6 +2418,7 @@ function obterDadosFiltrados() {
     const fim = document.getElementById('filtroFim').value;
     const fornecedor = document.getElementById('filtroFornecedor').value;
     const cliente = document.getElementById('filtroCliente').value;
+    const formaPagamento = document.getElementById('filtroFormaPagamento').value;
     
     let dados = [];
     
@@ -1961,6 +2429,7 @@ function obterDadosFiltrados() {
             if (inicio) dados = dados.filter(v => v.data >= inicio);
             if (fim) dados = dados.filter(v => v.data <= fim);
             if (cliente) dados = dados.filter(v => v.cliente === cliente);
+            if (formaPagamento) dados = dados.filter(v => v.formaPagamento === formaPagamento);
             break;
             
         case 'estoque':
