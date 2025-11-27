@@ -226,6 +226,7 @@ Equipe: Crislane, Raissa, Ketlhen, Leandro</strong><br>
                 <th data-sort="valor">Valor (R$)</th>
                 <th data-sort="hora">Horário</th>
                 <th data-sort="cliente">Cliente</th>
+                <th data-sort="formaPagamento">Forma de Pagamento</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -268,6 +269,17 @@ Equipe: Crislane, Raissa, Ketlhen, Leandro</strong><br>
                 <div id="autocomplete-vendaCliente" class="autocomplete-items"></div>
               </div>
               <div id="erro-vendaCliente" class="error hidden" style="margin-top:5px;"></div>
+            </div>
+            <div>
+              <label>Forma de Pagamento:</label>
+              <select id="vendaFormaPagamento" required>
+                <option value="">Selecione...</option>
+                <option value="Pix">Pix</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Crédito">Crédito</option>
+                <option value="Débito">Débito</option>
+                <option value="Fiado">Fiado</option>
+              </select>
             </div>
             <div>
               <label>Data da Venda:</label>
@@ -541,33 +553,47 @@ Equipe: Crislane, Raissa, Ketlhen, Leandro</strong><br>
             </div>
             <div class="filter-item">
               <label for="filtroProduto">Produto/Insumo:</label>
-              <select id="filtroProduto" onchange="atualizarRelatorio()">
-                <option value="">Todos</option>
-              </select>
+              <div class="filter-select-container">
+                <input type="text" id="filtroProduto" placeholder="Todos" readonly onclick="abrirModalSelecaoProduto()" style="cursor: pointer;">
+                <span class="filter-icon" onclick="abrirModalSelecaoProduto()">🔍</span>
+              </div>
             </div>
             <div class="filter-item">
               <label for="filtroInicio">Data Início:</label>
-              <input type="date" id="filtroInicio" onchange="atualizarRelatorio()">
+              <input type="date" id="filtroInicio">
             </div>
             <div class="filter-item">
               <label for="filtroFim">Data Fim:</label>
-              <input type="date" id="filtroFim" onchange="atualizarRelatorio()">
+              <input type="date" id="filtroFim">
             </div>
             <div class="filter-item">
               <label for="filtroFornecedor">Fornecedor:</label>
-              <select id="filtroFornecedor" onchange="atualizarRelatorio()">
-                <option value="">Todos</option>
-              </select>
+              <div class="filter-select-container">
+                <input type="text" id="filtroFornecedor" placeholder="Todos" readonly onclick="abrirModalSelecaoFornecedor()" style="cursor: pointer;">
+                <span class="filter-icon" onclick="abrirModalSelecaoFornecedor()">🔍</span>
+              </div>
             </div>
             <div class="filter-item">
               <label for="filtroCliente">Cliente:</label>
-              <select id="filtroCliente" onchange="atualizarRelatorio()">
-                <option value="">Todos</option>
+              <div class="filter-select-container">
+                <input type="text" id="filtroCliente" placeholder="Todos" readonly onclick="abrirModalSelecaoCliente()" style="cursor: pointer;">
+                <span class="filter-icon" onclick="abrirModalSelecaoCliente()">🔍</span>
+              </div>
+            </div>
+            <div class="filter-item">
+              <label for="filtroFormaPagamento">Forma de Pagamento:</label>
+              <select id="filtroFormaPagamento" onchange="atualizarRelatorio()">
+                <option value="">Todas as formas</option>
+                <option value="Pix">Pix</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Crédito">Crédito</option>
+                <option value="Débito">Débito</option>
+                <option value="Fiado">Fiado</option>
               </select>
             </div>
           </div>
           <div style="display: flex; gap: 10px; margin-top: 15px;">
-            <button type="button" onclick="atualizarRelatorio()">🔄 Gerar Relatório</button>
+            <button type="button" onclick="gerarRelatorio()">📊 Gerar Relatório</button>
             <button type="button" class="btn-limpar" onclick="limparFiltrosRelatorio()">🗑️ Limpar</button>
           </div>
         </div>
@@ -740,6 +766,69 @@ Equipe: Crislane, Raissa, Ketlhen, Leandro</strong><br>
       </div>
     </div>
 
+    <!-- Modal de seleção de Produto para Relatórios -->
+    <div class="simple-modal" id="selecaoProdutoModal">
+      <div class="simple-modal-content" style="max-width: 500px;">
+        <div class="simple-modal-header">
+          <h3>📦 Selecionar Produto/Insumo</h3>
+          <button class="close-simple-modal" onclick="fecharModalSelecaoProduto()">&times;</button>
+        </div>
+        <div class="simple-modal-body">
+          <input type="text" id="buscaProdutoRelatorio" placeholder="🔍 Digite para buscar (lista aparece ao digitar)" oninput="filtrarProdutosModal()" onkeydown="handleKeydownProdutosModal(event)" style="margin-bottom: 15px;">
+          <div class="modal-lista" id="listaProdutosModal" style="max-height: 300px; overflow-y: auto; border: 1px solid #e0d0c0; border-radius: 8px; padding: 10px;">
+            <!-- Lista de produtos será preenchida aqui -->
+          </div>
+          <div class="simple-modal-buttons" style="margin-top: 15px;">
+            <button onclick="selecionarTodosProdutos()">✅ Todos</button>
+            <button onclick="carregarTodosProdutosModal()">📥 Listar todos (carregar)</button>
+            <button class="btn-limpar" onclick="fecharModalSelecaoProduto()">❌ Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de seleção de Fornecedor para Relatórios -->
+    <div class="simple-modal" id="selecaoFornecedorModal">
+      <div class="simple-modal-content" style="max-width: 500px;">
+        <div class="simple-modal-header">
+          <h3>🏢 Selecionar Fornecedor</h3>
+          <button class="close-simple-modal" onclick="fecharModalSelecaoFornecedor()">&times;</button>
+        </div>
+        <div class="simple-modal-body">
+          <input type="text" id="buscaFornecedorRelatorio" placeholder="🔍 Digite para buscar (lista aparece ao digitar)" oninput="filtrarFornecedoresModal()" onkeydown="handleKeydownFornecedoresModal(event)" style="margin-bottom: 15px;">
+          <div class="modal-lista" id="listaFornecedoresModal" style="max-height: 300px; overflow-y: auto; border: 1px solid #e0d0c0; border-radius: 8px; padding: 10px;">
+            <!-- Lista de fornecedores será preenchida aqui -->
+          </div>
+          <div class="simple-modal-buttons" style="margin-top: 15px;">
+            <button onclick="selecionarTodosFornecedores()">✅ Todos</button>
+            <button onclick="carregarTodosFornecedoresModal()">📥 Listar todos (carregar)</button>
+            <button class="btn-limpar" onclick="fecharModalSelecaoFornecedor()">❌ Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de seleção de Cliente para Relatórios -->
+    <div class="simple-modal" id="selecaoClienteModal">
+      <div class="simple-modal-content" style="max-width: 500px;">
+        <div class="simple-modal-header">
+          <h3>👥 Selecionar Cliente</h3>
+          <button class="close-simple-modal" onclick="fecharModalSelecaoCliente()">&times;</button>
+        </div>
+        <div class="simple-modal-body">
+          <input type="text" id="buscaClienteRelatorio" placeholder="🔍 Digite para buscar (lista aparece ao digitar)" oninput="filtrarClientesModal()" onkeydown="handleKeydownClientesModal(event)" style="margin-bottom: 15px;">
+          <div class="modal-lista" id="listaClientesModal" style="max-height: 300px; overflow-y: auto; border: 1px solid #e0d0c0; border-radius: 8px; padding: 10px;">
+            <!-- Lista de clientes será preenchida aqui -->
+          </div>
+          <div class="simple-modal-buttons" style="margin-top: 15px;">
+            <button onclick="selecionarTodosClientes()">✅ Todos</button>
+            <button onclick="carregarTodosClientesModal()">📥 Listar todos (carregar)</button>
+            <button class="btn-limpar" onclick="fecharModalSelecaoCliente()">❌ Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal simples para adicionar cliente -->
     <div class="simple-modal" id="clienteModal">
       <div class="simple-modal-content">
@@ -760,8 +849,7 @@ Equipe: Crislane, Raissa, Ketlhen, Leandro</strong><br>
   </main>
 
   <footer>
-    PADARIA PÃO QUENTINHO<br>
-    💻 Desenvolvido por Leandro Yata - 2025 | <span id="footerDataHora"></span>
+    🥖 PADARIA PÃO QUENTINHO | <span id="footerDataHora"></span>
   </footer>
 
   <!-- jsPDF e Chart.js -->
